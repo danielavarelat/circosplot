@@ -13,25 +13,25 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("-vcf", "--vcf", type=str, required=True, help="input vcf")
 parser.add_argument("-cns", "--cns", type=str, required=True, help="input cns")
-parser.add_argument("-ref", "--ref", type=str, required=True, help="reference bedfile")
-parser.add_argument("-id", "--id", required=True, type=str, help="input id")
 parser.add_argument("-o", "--output", required=True, type=str, help="output directory")
+
+def chromosome(chrom):
+    chrs={"chr1":1,"chr2":2,"chr3":3,"chr4":4,"chr5":5,"chr6":6,"chr7":7,"chr8":8,"chr9":9,"chr10":10,"chr11":11,"chr12":12,"chr13":13,"chr14":14,"chr15":15,"chr16":16,"chr17":17,"chr18":18,"chr19":19,"chr20":20,"chr21":21,"chr22":22,"chrX":"X","chrY":"Y","NC_012920.1":"MT"}
+    ch=chrs[chrom]
+    return str(ch)
 
 class SV:
     def __init__(self, rec):
         """ Create SV object for each pysam variant record."""
-        self.chr1 = rec.contig
+        self.chr1 = chromosome(rec.chrom)
         self.pos1 = int(rec.start) + 1
-        self.chr2, self.pos2 = re.sub(r"\[|\]|N", "", rec.alts[0]).split(
-            ":"
-        )  # can use chr2 and end (.stop)
-        self.pos2 = int(self.pos2)
-        info_keys = [k for k in rec.info.keys()]
-        self.info_keys = info_keys
-        if "SVTYPE" in info_keys:
-            self.type = rec.info.get("SVTYPE")
+        self.pos2= int(rec.stop)
+        self.type = rec.info["SVTYPE"]
+        if self.type  == "BND":
+            self.chr2=chromosome(rec.info["CHR2"])
         else:
-            self.type = ""
+            self.chr2=self.chr1
+
         self.name = "%s(%s:%s-%s:%s)" % (
             self.type,
             self.chr1,
@@ -44,21 +44,17 @@ class Sample:
     """Creation of sample object."""
     def __init__(
         self,
-        ide,
         cns,
         merged_vcf,
-        ref_gene,
         out_dir,
     ):
         """Creation of sample object."""
         # pylint: disable=line-too-long
-        self.id = ide
         self.cns = cns
-        self.gen_reg = ref_gene
         self.out_dir = os.path.join(out_dir)
         self.vcf = str(merged_vcf)
-        self.segs = os.path.join(self.out_dir, "%s_segs.csv" % self.id)
-        self.circos_out = os.path.join(self.out_dir, "%s_circos.png" % self.id)
+        self.segs = os.path.join(self.out_dir, "segs.csv")
+        self.circos_out = os.path.join(self.out_dir, "circos.png")
         self.svs = {}
 
         if os.path.isfile(self.vcf):
@@ -83,7 +79,7 @@ class Sample:
             for sv in self.svs.values()
         ]
         circos_sv_file = os.path.join(
-            self.out_dir, "%s_circos_svs.tsv" % self.id
+            self.out_dir, "circos_svs.tsv"
         )
         circos_df = pd.DataFrame(
             [
@@ -100,22 +96,9 @@ class Sample:
             ],
         )
         circos_df.to_csv(circos_sv_file, index=None)
-        script_path = os.path.join(
-             os.path.dirname(os.path.abspath(__file__)), "make_circos.r"
-         )
-        #script_path="/home/danielavt/toil_circosigv/toil_circosigv/make_circos.r"
-        cmd = [
-            script_path,
-            circos_sv_file,
-            self.id,
-            self.gen_reg,
-            self.segs,
-            self.circos_out,
-        ]
-        print(" ".join(cmd)) 
 
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    sampl= Sample(args.ide,args.cns,args.vcf,args.ref,args.out)
+    sampl= Sample(args.cns,args.vcf,args.out)
     sampl.runcircos()
