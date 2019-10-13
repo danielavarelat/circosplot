@@ -100,5 +100,5 @@ class Sample:
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    sampl= Sample(args.cns,args.vcf,args.out)
+    sampl= Sample(args.cns,args.vcf,args.o)
     sampl.runcircos()
